@@ -29,14 +29,19 @@ const RIPAR_EXT = {
 
 /** TestNet ERC-8004-shaped registries. Reputation is v2 — the one that reads
  *  the amount off the settling transfer instead of taking it as an argument. */
-const REGISTRIES = { identityApp: 768547159, reputationApp: 768559198, validationApp: 768547172 };
+const REGISTRIES = { identityApp: 768570170, reputationApp: 768570171, validationApp: 768570174 };
 
-/** This agent's id in the IdentityRegistry, minted by new_agent in
- *  36UXKE5JK75BY2QRE46XKKIZQCVLNNZYTKLZ5G74ORRLWSZCXSYA. The contract takes the
- *  owner from Txn.sender, so the address that registered is the address paid
- *  below — which is the whole point: resolve the domain, get this id, read its
- *  reputation, and only then decide to pay. */
-const AGENT_ID = 2;
+/** This agent's id in the IdentityRegistry above.
+ *
+ *  new_agent takes the owner from Txn.sender, so the address that registered is
+ *  the address `payTo` names below. That is the whole point of publishing it:
+ *  resolve the domain, get this id, check the address matches the one you are
+ *  being asked to pay, read its reputation — and only then decide.
+ *
+ *  A card is a file on a web server and anyone can write one. The registry
+ *  entry is signed by the account that gets paid, so it is the half that
+ *  cannot be forged. */
+const AGENT_ID = 1;
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
