@@ -107,16 +107,24 @@ export async function GET(request: Request) {
               "which server to connect to and which tools it will find there.",
             required: false,
             params: {
-              package: "ripar-skills",
               transport: "stdio",
+              // Not on npm yet, so the card points at the repo rather than a
+              // package name that would 404. A `prepare` script builds the
+              // checkout, which is what makes this command work today.
               command: "npx",
-              args: ["-y", "ripar-skills", "mcp"],
+              args: ["-y", "github:nickthelegend/ripar-skills"],
+              source: "https://github.com/nickthelegend/ripar-skills",
+              // The eight tools the server actually registers. Verified by
+              // speaking MCP to it over stdio, not copied from a design note.
               tools: [
                 "ripar_search_agents",
                 "ripar_get_agent",
                 "ripar_get_reputation",
-                "ripar_quote_call",
-                "ripar_compose_job",
+                "ripar_list_jobs",
+                "ripar_settlements",
+                "ripar_quote_endpoint",
+                "ripar_call_endpoint",
+                "ripar_post_job",
               ],
             },
           },
