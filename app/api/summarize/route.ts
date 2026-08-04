@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
 import { PAY_TO, resolveNetwork, x402Server } from "@/lib/x402";
+import { SkillInputError, summarize } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -19,33 +20,15 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const text = String(body.text ?? "").replace(/\s+/g, " ").trim();
-  if (!text) {
-    return NextResponse.json(
-      { error: { code: "missing_text", message: "`text` is required and must be non-empty." } },
-      { status: 400 }
-    );
+  try {
+    return NextResponse.json(summarize(body));
+  } catch (err) {
+    if (err instanceof SkillInputError) {
+      // 4xx, so the caller is not charged for a malformed request.
+      return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: 400 });
+    }
+    throw err;
   }
-
-  const max = Math.min(Math.max(Number(body.max) || 280, 40), 2000);
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
-
-  // Take whole sentences while they fit, so the summary ends cleanly rather
-  // than mid-word.
-  let summary = "";
-  for (const s of sentences) {
-    if ((summary + " " + s).trim().length > max) break;
-    summary = (summary + " " + s).trim();
-  }
-  if (!summary) summary = text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-
-  return NextResponse.json({
-    summary,
-    chars: text.length,
-    summaryChars: summary.length,
-    sentences: sentences.length,
-    compression: Number((summary.length / text.length).toFixed(3)),
-  });
 }
 
 /** Resolve the network once per cold start, then wrap. */
