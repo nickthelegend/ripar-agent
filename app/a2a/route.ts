@@ -162,11 +162,17 @@ async function gatedSend(request: NextRequest) {
         id: (body as JsonRpcRequest).id ?? null,
         error: {
           code: ERR.paymentRequired,
-          message: "This skill is paid. Settle the attached x402 challenge and retry with an X-PAYMENT header.",
+          message:
+            "This skill is paid. Settle the attached x402 challenge and retry with a PAYMENT-SIGNATURE header.",
           data: {
             protocol: "x402",
             requirements: requirements ?? challenge,
-            retryWith: "X-PAYMENT",
+            // PAYMENT-SIGNATURE is the x402 v2 name and the only one @x402/core
+            // reads. This route also accepts the older X-PAYMENT because
+            // @x402/next falls back to it, but a caller told to send X-PAYMENT
+            // would fail against any server built on @x402/express.
+            retryWith: "PAYMENT-SIGNATURE",
+            alsoAccepted: ["X-PAYMENT"],
             restEquivalent: "/api/summarize",
           },
         },
