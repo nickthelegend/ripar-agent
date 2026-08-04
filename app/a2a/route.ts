@@ -2,6 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
 import { PAY_TO, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, summarize } from "@/lib/skills";
+import { PROTOCOL_VERSION, completedTask, sseFrames, streamEvents } from "@/lib/a2a";
+import {
+  TASK_STORE_CAVEAT,
+  cancelTask,
+  getTask,
+  putTask,
+  taskIdFor,
+} from "@/lib/tasks";
 
 /**
  * The A2A endpoint the agent card names.
@@ -12,32 +20,40 @@ import { SkillInputError, summarize } from "@/lib/skills";
  * endpoint — JSON-RPC 2.0, the methods a client actually reaches for.
  *
  * The interesting part is where A2A meets x402. A2A has no notion of paying
- * for a call, so an unpaid `message/send` is answered with JSON-RPC error
- * -32002 carrying the x402 challenge in `data`. A caller that understands x402
- * signs it and retries with the same header the REST endpoint takes; a caller
- * that does not at least learns why it was refused and what it would cost,
- * rather than being told "unauthorized".
+ * for a call, so an unpaid `message/send` is answered with a JSON-RPC error
+ * carrying the x402 challenge in `data`. A caller that understands x402 signs
+ * it and retries with the same header the REST endpoint takes; a caller that
+ * does not at least learns why it was refused and what it would cost, rather
+ * than being told "unauthorized".
  *
  * Work here is synchronous, so `message/send` returns a completed Task rather
- * than a pending one. Tasks are not persisted — `tasks/get` says so plainly
- * instead of inventing a status for an id it has never seen.
+ * than a pending one, and `message/stream` emits the whole lifecycle at once
+ * over real SSE. Completed tasks are kept in a bounded per-process map so
+ * `tasks/get` can genuinely fetch one back — see lib/tasks.ts for exactly how
+ * little that promises.
  */
 export const dynamic = "force-dynamic";
 
 type JsonRpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: unknown };
 
-const PROTOCOL_VERSION = "1.0";
+/* JSON-RPC 2.0 reserves -32768..-32000, and A2A has claimed -32001..-32006
+   inside it. Payment-required is not an A2A error, so it takes a code outside
+   that block and inside JSON-RPC's implementation-defined server-error range
+   (-32099..-32000).
 
-/* JSON-RPC 2.0 reserves -32768..-32000. -32002 is the A2A convention for
-   "the call is understood but cannot proceed as sent". */
+   It used to be -32002, which A2A defines as TaskNotCancelable — a collision
+   that did not matter while tasks/cancel was a stub answering the same code for
+   a different reason, and became a real ambiguity the moment cancel got real
+   semantics. One number cannot mean both "pay me" and "too late to cancel". */
 const ERR = {
   parse: -32700,
   invalidRequest: -32600,
   methodNotFound: -32601,
   invalidParams: -32602,
   internal: -32603,
-  paymentRequired: -32002,
   taskNotFound: -32001,
+  taskNotCancelable: -32002,
+  paymentRequired: -32010,
 } as const;
 
 function rpcError(id: JsonRpcRequest["id"], code: number, message: string, data?: unknown, status = 200) {
@@ -73,24 +89,22 @@ function textOf(params: unknown): { text: string; max?: number } {
   return { text, max: Number.isFinite(max) ? max : undefined };
 }
 
-/** Deterministic id from the request id, so a retry does not mint a new task. */
-function taskIdFor(id: JsonRpcRequest["id"]) {
-  return `task-${String(id ?? "anon")}`;
+function contextOf(params: unknown, fallback: string): string {
+  return String((params as { message?: { contextId?: string } })?.message?.contextId ?? fallback);
 }
 
-/** The paid path. Reached only once x402 has settled, exactly like the REST
- *  endpoint — withX402 replays the request into this handler after settling. */
-async function paidHandler(request: NextRequest): Promise<NextResponse> {
-  let rpc: JsonRpcRequest;
-  try {
-    rpc = await request.json();
-  } catch {
-    return rpcError(null, ERR.parse, "Body must be JSON-RPC 2.0.");
-  }
-
+/**
+ * Do the work and store the result, or return the JSON-RPC error that stops it.
+ *
+ * Shared by both delivery paths so a summary cannot differ between them, and so
+ * a task is stored exactly once whichever way it was asked for.
+ */
+function runSkill(rpc: JsonRpcRequest) {
   const { text, max } = textOf(rpc.params);
   if (!text) {
-    return rpcError(rpc.id, ERR.invalidParams, "message.parts must contain a non-empty text part.");
+    return {
+      error: rpcError(rpc.id, ERR.invalidParams, "message.parts must contain a non-empty text part."),
+    };
   }
 
   let result;
@@ -98,49 +112,93 @@ async function paidHandler(request: NextRequest): Promise<NextResponse> {
     result = summarize({ text, max });
   } catch (err) {
     if (err instanceof SkillInputError) {
-      return rpcError(rpc.id, ERR.invalidParams, err.message, { code: err.code });
+      return { error: rpcError(rpc.id, ERR.invalidParams, err.message, { code: err.code }) };
     }
-    return rpcError(rpc.id, ERR.internal, "The skill failed.", undefined, 500);
+    return { error: rpcError(rpc.id, ERR.internal, "The skill failed.", undefined, 500) };
   }
 
-  const taskId = taskIdFor(rpc.id);
-  const contextId = String((rpc.params as { message?: { contextId?: string } })?.message?.contextId ?? taskId);
+  // Derived from the request id AND the input, so retrying the same call is
+  // idempotent while two callers who both used id 1 do not overwrite each
+  // other — which they would with an id built from the request id alone.
+  const taskId = taskIdFor(rpc.id, { text, max });
+  const task = completedTask({ taskId, contextId: contextOf(rpc.params, taskId), result });
+  putTask(task);
+  return { task };
+}
 
-  return rpcResult(rpc.id, {
-    id: taskId,
-    contextId,
-    kind: "task",
-    // Synchronous work, so it is already done. Reporting "submitted" here would
-    // make every client poll tasks/get for something that will never change.
-    status: { state: "completed", timestamp: new Date().toISOString() },
-    artifacts: [
-      {
-        artifactId: `${taskId}-summary`,
-        name: "summary",
-        parts: [
-          { kind: "text", text: result.summary },
-          { kind: "data", data: result },
-        ],
-      },
-    ],
+/** The paid path for message/send. Reached only once x402 has settled. */
+async function paidSend(request: NextRequest): Promise<NextResponse> {
+  let rpc: JsonRpcRequest;
+  try {
+    rpc = await request.json();
+  } catch {
+    return rpcError(null, ERR.parse, "Body must be JSON-RPC 2.0.");
+  }
+
+  const outcome = runSkill(rpc);
+  if (outcome.error) return outcome.error;
+
+  return rpcResult(rpc.id, { ...outcome.task, metadata: { taskStore: TASK_STORE_CAVEAT } });
+}
+
+/**
+ * The paid path for message/stream: a real `text/event-stream`.
+ *
+ * Worth being precise about what does and does not stream here. The events are
+ * genuine A2A lifecycle events on a genuine SSE response, which is what
+ * `capabilities.streaming` claims and all it claims. They are not spread out
+ * over time, because the work finishes in microseconds and there is no
+ * intermediate state to report — and, separately, `withX402` buffers a response
+ * body in order to settle payment against it, so even a slow handler would not
+ * reach the client incrementally through the paywall. That is a property of
+ * settling before delivery, and it is stated here rather than discovered later.
+ */
+async function paidStream(request: NextRequest): Promise<NextResponse> {
+  let rpc: JsonRpcRequest;
+  try {
+    rpc = await request.json();
+  } catch {
+    return rpcError(null, ERR.parse, "Body must be JSON-RPC 2.0.");
+  }
+
+  const outcome = runSkill(rpc);
+  // An error before the stream opens is a plain JSON-RPC error, not an SSE
+  // frame: nothing has been streamed yet, and a client that asked for a stream
+  // and got a failure should not have to parse SSE to read it.
+  if (outcome.error) return outcome.error;
+
+  const body = sseFrames(rpc.id ?? null, streamEvents(outcome.task!));
+
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      // no-transform matters as much as no-store: a proxy that helpfully
+      // compresses or rewrites an event stream breaks frame boundaries.
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      // Nginx and several CDNs buffer proxied responses by default, which turns
+      // an event stream into one delivery at the end.
+      "x-accel-buffering": "no",
+    },
   });
 }
 
-/** message/send is the only method that costs money, so it is the only one
- *  wrapped. Resolved per cold start because the CAIP-2 id comes from the
- *  facilitator rather than a constant. */
-async function gatedSend(request: NextRequest) {
+/** Both paid methods cost the same, so they are gated the same way. Resolved
+ *  per cold start because the CAIP-2 id comes from the facilitator rather than
+ *  a constant. */
+async function gated(request: NextRequest, handler: (r: NextRequest) => Promise<NextResponse>, what: string) {
   const network = await resolveNetwork();
-  const gated = withX402(
-    paidHandler,
+  const wrapped = withX402(
+    handler,
     {
       accepts: { scheme: "exact", network, payTo: PAY_TO, price: "$0.01" },
-      description: "A2A message/send against the summarize skill.",
+      description: `A2A ${what} against the summarize skill.`,
     },
     x402Server
   );
 
-  const res = await gated(request);
+  const res = await wrapped(request);
 
   // withX402 answers an unpaid call with a bare HTTP 402. A JSON-RPC client
   // cannot read that, so translate: same challenge, in the envelope the caller
@@ -187,7 +245,7 @@ async function gatedSend(request: NextRequest) {
 export async function POST(request: NextRequest) {
   let rpc: JsonRpcRequest;
   try {
-    // Cloned, because gatedSend re-reads the body when payment is needed.
+    // Cloned, because the gated handlers re-read the body.
     rpc = await request.clone().json();
   } catch {
     return rpcError(null, ERR.parse, "Body must be JSON-RPC 2.0.");
@@ -199,34 +257,65 @@ export async function POST(request: NextRequest) {
 
   switch (rpc.method) {
     case "message/send":
-      return gatedSend(request);
+      return gated(request, paidSend, "message/send");
 
     case "message/stream":
-      // The card says streaming: false. Saying so here too is better than a
-      // silent hang while a client waits for events that never come.
-      return rpcError(
-        rpc.id,
-        ERR.methodNotFound,
-        "This agent does not stream; its capabilities.streaming is false. Use message/send."
-      );
+      return gated(request, paidStream, "message/stream");
 
     case "tasks/get": {
-      // Work completes inside message/send and nothing is stored, so any id is
-      // one we have never seen. Admitting that beats fabricating a status.
       const id = (rpc.params as { id?: string })?.id;
-      return rpcError(
-        rpc.id,
-        ERR.taskNotFound,
-        `No task ${id ?? "(none given)"}. This agent completes work synchronously in message/send and does not retain tasks.`
-      );
+      if (!id) {
+        return rpcError(rpc.id, ERR.invalidParams, "tasks/get needs params.id.");
+      }
+      const task = getTask(id);
+      if (!task) {
+        // Deliberately not "no such task": this process not having it is a
+        // weaker claim than it never existing, and the difference is the whole
+        // reason the caveat is attached.
+        return rpcError(
+          rpc.id,
+          ERR.taskNotFound,
+          `This server process is not holding task ${id}.`,
+          { taskStore: TASK_STORE_CAVEAT }
+        );
+      }
+      return rpcResult(rpc.id, { ...task, metadata: { taskStore: TASK_STORE_CAVEAT } });
     }
 
-    case "tasks/cancel":
+    case "tasks/cancel": {
+      const id = (rpc.params as { id?: string })?.id;
+      if (!id) {
+        return rpcError(rpc.id, ERR.invalidParams, "tasks/cancel needs params.id.");
+      }
+      const outcome = cancelTask(id);
+      if (outcome.ok) {
+        // Unreachable today and left as the honest branch rather than removed:
+        // a task only enters the store once it is finished, so there is never
+        // anything in flight to interrupt. If work ever becomes asynchronous
+        // this is where a cancellation would land.
+        return rpcResult(rpc.id, {
+          ...outcome.task,
+          status: { state: "canceled", timestamp: new Date().toISOString() },
+        });
+      }
+      if (outcome.reason === "not_found") {
+        return rpcError(
+          rpc.id,
+          ERR.taskNotFound,
+          `This server process is not holding task ${id}, so there is nothing here to cancel.`,
+          { taskStore: TASK_STORE_CAVEAT }
+        );
+      }
       return rpcError(
         rpc.id,
-        ERR.taskNotFound,
-        "Nothing to cancel: work completes synchronously within message/send."
+        ERR.taskNotCancelable,
+        `Task ${id} has already completed and cannot be cancelled.`,
+        {
+          state: outcome.task?.status.state,
+          why: "This agent's skill is synchronous: a task exists only once the work is finished, so every task this server holds is already past the point of cancelling.",
+        }
       );
+    }
 
     case "agent/getAuthenticatedExtendedCard":
       // No authenticated view exists, so the public card IS the whole card.
@@ -236,7 +325,7 @@ export async function POST(request: NextRequest) {
       return rpcError(
         rpc.id,
         ERR.methodNotFound,
-        `Unknown method "${rpc.method ?? ""}". This agent implements message/send.`
+        `Unknown method "${rpc.method ?? ""}". This agent implements message/send, message/stream, tasks/get and tasks/cancel.`
       );
   }
 }
@@ -248,8 +337,13 @@ export function GET(request: NextRequest) {
     protocol: "A2A",
     protocolVersion: PROTOCOL_VERSION,
     transport: "JSONRPC",
-    methods: ["message/send"],
+    methods: ["message/send", "message/stream", "tasks/get", "tasks/cancel"],
     card: new URL("/.well-known/agent.json", request.url).toString(),
-    note: "POST JSON-RPC 2.0 here. message/send is paid over x402; an unpaid call returns error -32002 carrying the challenge.",
+    note:
+      `POST JSON-RPC 2.0 here. message/send and message/stream are paid over x402; an unpaid call ` +
+      `returns error ${ERR.paymentRequired} carrying the challenge. message/stream answers with ` +
+      `text/event-stream — real SSE carrying the A2A lifecycle, though the work is synchronous so ` +
+      `every event is produced at once rather than spread over time.`,
+    tasks: TASK_STORE_CAVEAT,
   });
 }

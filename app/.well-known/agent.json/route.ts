@@ -77,7 +77,13 @@ export async function GET(request: Request) {
       documentationUrl: "https://docs.ripar.io",
 
       capabilities: {
-        streaming: false,
+        // /a2a implements message/stream and answers it with a real
+        // text/event-stream carrying the A2A lifecycle — an initial Task, a
+        // working status, the artifact, and a final event. The work behind it
+        // is synchronous, so the events are produced at once rather than spread
+        // over time; what this flag claims is that the method exists and speaks
+        // SSE, which it does. It stayed false until it did.
+        streaming: true,
         pushNotifications: false,
         extensions: [
           {
@@ -119,7 +125,7 @@ export async function GET(request: Request) {
               command: "npx",
               args: ["-y", "github:nickthelegend/ripar-skills"],
               source: "https://github.com/nickthelegend/ripar-skills",
-              // The eight tools the server actually registers. Verified by
+              // The ten tools the server actually registers. Verified by
               // speaking MCP to it over stdio, not copied from a design note.
               tools: [
                 "ripar_search_agents",
@@ -130,6 +136,8 @@ export async function GET(request: Request) {
                 "ripar_quote_endpoint",
                 "ripar_call_endpoint",
                 "ripar_post_job",
+                "ripar_fund_job",
+                "ripar_settle_escrow",
               ],
             },
           },
