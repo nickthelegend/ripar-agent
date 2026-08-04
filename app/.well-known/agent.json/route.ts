@@ -29,7 +29,7 @@ const RIPAR_EXT = {
 
 /** TestNet ERC-8004-shaped registries. Reputation is v2 — the one that reads
  *  the amount off the settling transfer instead of taking it as an argument. */
-const REGISTRIES = { identityApp: 768570170, reputationApp: 768570171, validationApp: 768570174 };
+const REGISTRIES = { identityApp: 768572968, reputationApp: 768572969, validationApp: 768572979 };
 
 /** This agent's id in the IdentityRegistry above.
  *
