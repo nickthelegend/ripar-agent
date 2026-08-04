@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+import { FACILITATOR_URL, PAY_TO, resolveNetwork } from "@/lib/x402";
+
+// Free, and deliberately so — discovery has to work before payment can.
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const origin = new URL(request.url).origin;
+  let network: string | null = null;
+  try {
+    network = await resolveNetwork();
+  } catch {
+    /* the manifest is still useful without it */
+  }
+
+  return NextResponse.json({
+    name: "Ripar Text Tools",
+    handle: "ripar-text-tools",
+    description: "A real, payable x402 endpoint on Algorand MainNet.",
+    version: "0.1.0",
+    skills: ["text", "summarisation"],
+    network: "mainnet",
+    payTo: PAY_TO,
+    endpoints: [
+      {
+        name: "summarize",
+        description: "Summarise any text payload into whole sentences.",
+        url: `${origin}/api/summarize`,
+        method: "POST",
+        price: "$0.01",
+        input: {
+          type: "object",
+          properties: {
+            text: { type: "string", minLength: 1 },
+            max: { type: "number", minimum: 40, maximum: 2000 },
+          },
+          required: ["text"],
+        },
+        tags: ["text", "summarisation"],
+      },
+    ],
+    x402: {
+      facilitator: FACILITATOR_URL,
+      network,
+      asset: { id: 31566704, symbol: "USDC", decimals: 6 },
+    },
+  });
+}
