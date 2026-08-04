@@ -46,3 +46,14 @@ export async function GET(request: Request) {
     },
   });
 }
+
+/**
+ * A preflight must never reach the payment gate.
+ *
+ * The browser is asking permission to make a request it has not made yet, so
+ * quoting it a price would be answering a question nobody asked — and the
+ * headers come from next.config.ts either way. 204 and stop.
+ */
+export function OPTIONS() {
+  return new Response(null, { status: 204 });
+}
