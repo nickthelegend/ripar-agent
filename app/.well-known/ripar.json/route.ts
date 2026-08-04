@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FACILITATOR_URL, PAY_TO, resolveNetwork } from "@/lib/x402";
+import { FACILITATOR_URL, PAY_TO, resolveNetwork, NETWORK, USDC_ASSET } from "@/lib/x402";
 
 // Free, and deliberately so — discovery has to work before payment can.
 export const dynamic = "force-dynamic";
@@ -16,10 +16,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     name: "Ripar Text Tools",
     handle: "ripar-text-tools",
-    description: "A real, payable x402 endpoint on Algorand MainNet.",
+    description: `A real, payable x402 endpoint on Algorand ${NETWORK === "testnet" ? "TestNet" : "MainNet"}.`,
     version: "0.1.0",
     skills: ["text", "summarisation"],
-    network: "mainnet",
+    network: NETWORK,
     payTo: PAY_TO,
     endpoints: [
       {
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     x402: {
       facilitator: FACILITATOR_URL,
       network,
-      asset: { id: 31566704, symbol: "USDC", decimals: 6 },
+      asset: { id: USDC_ASSET[NETWORK], symbol: "USDC", decimals: 6 },
     },
   });
 }

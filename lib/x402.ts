@@ -17,7 +17,24 @@ export const FACILITATOR_URL =
 /** Settlement lands here directly — this app never holds a balance. */
 export const PAY_TO = process.env.PAY_TO ?? "";
 
-const MAINNET_PREFIX = "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k";
+/** Which chain this deployment settles on. TestNet while the endpoint is
+ *  being proven; flip the env var to promote it, no code change. */
+export type Network = "mainnet" | "testnet";
+export const NETWORK: Network = process.env.RIPAR_NETWORK === "testnet" ? "testnet" : "mainnet";
+
+// CAIP-2 truncates the genesis hash to 32 characters, so these are prefixes of
+// what a facilitator publishes — matched both ways below.
+const PREFIX: Record<Network, string> = {
+  mainnet: "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73k",
+  testnet: "algorand:SGO1GKSzyE7IEPItTxCByw9x8FmnrCDe",
+};
+
+/** USDC is a different asset on each network. Quoting the wrong id produces a
+ *  payment nobody can make. */
+export const USDC_ASSET: Record<Network, number> = {
+  mainnet: 31_566_704,
+  testnet: 10_458_941,
+};
 
 type Caip2 = `${string}:${string}`;
 
@@ -32,9 +49,11 @@ export async function resolveNetwork(): Promise<Caip2> {
     (k) =>
       k.scheme === "exact" &&
       typeof k.network === "string" &&
-      (k.network.startsWith(MAINNET_PREFIX) || MAINNET_PREFIX.startsWith(k.network))
+      (k.network.startsWith(PREFIX[NETWORK]) || PREFIX[NETWORK].startsWith(k.network))
   );
-  if (!match?.network) throw new Error("facilitator does not support Algorand MainNet");
+  if (!match?.network) {
+    throw new Error(`facilitator does not support Algorand ${NETWORK}`);
+  }
   cached = match.network as Caip2;
   return cached;
 }
