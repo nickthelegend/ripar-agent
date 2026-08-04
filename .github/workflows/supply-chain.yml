@@ -1,0 +1,88 @@
+name: supply-chain
+
+# Secrets and advisories. No SBOM here: this is a deployed application, not a
+# package anyone installs, so there is no consumer to hand a bill of materials
+# to — the equivalent question for a Vercel deployment is answered by the
+# lockfile plus the audit below.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 5 * * *"
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Secrets.
+  #
+  # This is the live agent at api.ripar.io, and the account it names as `payTo`
+  # is the same account that created all three registries. A mnemonic reaching
+  # this repo is not "a leaked test key" — it is the deployer.
+  #
+  # PAY_TO is deliberately an environment variable rather than a literal (the
+  # build job asserts the app fails loudly without it), so the correct state
+  # here is zero findings and this check is what keeps it that way.
+  # ---------------------------------------------------------------------------
+  secrets:
+    name: no secrets in the tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: fetch the scanner
+        uses: actions/checkout@v4
+        with:
+          repository: nickthelegend/ripar-contracts
+          path: tools
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: scan
+        run: node tools/scripts/scan-secrets.mjs repo
+
+  # ---------------------------------------------------------------------------
+  # 2. Dependencies.
+  #
+  # No --omit=dev split here, unlike the library repos: everything this app
+  # depends on ends up in a deployment that answers requests from the internet
+  # and holds a payment address, so the distinction between "runtime" and
+  # "dev" does not describe a difference in exposure.
+  #
+  # Passes today. It did not on 2026-08-04: next 16.2.10 pulled in three high
+  # advisories — postcss (GHSA-qx2v-qp2m-jg93 and three more sourceMappingURL
+  # file-read issues) and sharp's libvips CVEs. next 16.3.0 clears all three and
+  # the app still builds, all six routes included.
+  # ---------------------------------------------------------------------------
+  audit:
+    name: no high or critical advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: no high or critical
+        run: npm audit --audit-level=high
+
+      - name: the full picture, for the log
+        if: always()
+        run: npm audit || true
