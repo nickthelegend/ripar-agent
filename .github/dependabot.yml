@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # A major TypeScript bump rewrites what compiles. Dependabot opened
+      # typescript@7 against every repo and every one of those PRs went red —
+      # that is the upgrade being a real project, not CI being broken. Majors
+      # here are taken deliberately, not merged from a bot.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # Next and React majors move together with the whole app; same reasoning.
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

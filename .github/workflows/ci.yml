@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Must match the npm major that wrote package-lock.json. The lockfile
+          # is v3 written by npm 11; Node 22 ships npm 10, whose `npm ci`
+          # reports transitive deps as "Missing from lock file" even when they
+          # are plainly present. Node 24 ships npm 11.
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # PAY_TO is deliberately absent here. The agent must build without it and
+      # fail loudly at runtime instead, which is what the health route asserts.
+      - name: Build
+        run: npm run build
