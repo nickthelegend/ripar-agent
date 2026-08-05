@@ -36,6 +36,28 @@ export const USDC_ASSET: Record<Network, number> = {
   testnet: 10_458_941,
 };
 
+/**
+ * The asset the on-chain registries settle in, where there is one.
+ *
+ * ReputationRegistry pins its settlement asset at bootstrap and never lets it
+ * change — `accept_feedback` asserts `payment.xfer_asset.id == self.usdc_asset`
+ * — so a payment in any other asset settles perfectly over HTTP and then cannot
+ * credit reputation. The two halves work and do not compose.
+ *
+ * On TestNet that asset is Ripar Test USDC, because real TestNet USDC is
+ * faucet-gated and an agent that cannot obtain it cannot be paid at all. So the
+ * endpoint quotes BOTH: real USDC first for anyone who has it, and this second
+ * for a caller who wants the payment to reach their score. x402 `accepts` is an
+ * array precisely so a resource can offer more than one way to pay.
+ *
+ * Null on mainnet: nothing is deployed there, and inventing an id would quote a
+ * payment nobody can make.
+ */
+export const REGISTRY_ASSET: Record<Network, { id: number; decimals: number; symbol: string } | null> = {
+  mainnet: null,
+  testnet: { id: 768_547_363, decimals: 6, symbol: "rUSDC" },
+};
+
 type Caip2 = `${string}:${string}`;
 
 let cached: Caip2 | null = null;
