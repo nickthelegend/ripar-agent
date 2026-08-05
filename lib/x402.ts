@@ -58,6 +58,45 @@ export const REGISTRY_ASSET: Record<Network, { id: number; decimals: number; sym
   testnet: { id: 768_547_363, decimals: 6, symbol: "rUSDC" },
 };
 
+/** One cent, in the base units of a six-decimal asset. */
+const PRICE_MICRO = "10000";
+
+/**
+ * Every way this agent will accept a cent, for any gated route.
+ *
+ * Built here rather than inline per route because there are two routes —
+ * /api/summarize and /a2a — selling the same skill, and they drifted the moment
+ * one of them learned something the other did not: /a2a kept quoting USDC alone
+ * after the REST route started offering both, so a peer that discovered the
+ * agent through its card and paid over A2A could never be credited.
+ *
+ * The order matters. USDC is what a stranger has and what the challenge is
+ * denominated in, so a client that takes accepts[0] gets the obvious one.
+ */
+export function paymentOptions(network: `${string}:${string}`) {
+  const registryAsset = REGISTRY_ASSET[NETWORK];
+  return [
+    { scheme: "exact" as const, network, payTo: PAY_TO, price: "$0.01" },
+    ...(registryAsset
+      ? [
+          {
+            scheme: "exact" as const,
+            network,
+            payTo: PAY_TO,
+            price: {
+              asset: String(registryAsset.id),
+              amount: PRICE_MICRO,
+              // `usd: false` is not decoration. Without it a client converts
+              // these base units as though they were USDC and misreports the
+              // price of any asset whose decimals differ.
+              extra: { decimals: registryAsset.decimals, usd: false, symbol: registryAsset.symbol },
+            },
+          },
+        ]
+      : []),
+  ];
+}
+
 type Caip2 = `${string}:${string}`;
 
 let cached: Caip2 | null = null;

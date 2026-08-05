@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
-import { PAY_TO, resolveNetwork, x402Server } from "@/lib/x402";
+import { paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, summarize } from "@/lib/skills";
 import { PROTOCOL_VERSION, completedTask, sseFrames, streamEvents } from "@/lib/a2a";
 import {
@@ -192,7 +192,7 @@ async function gated(request: NextRequest, handler: (r: NextRequest) => Promise<
   const wrapped = withX402(
     handler,
     {
-      accepts: { scheme: "exact", network, payTo: PAY_TO, price: "$0.01" },
+      accepts: paymentOptions(network),
       description: `A2A ${what} against the summarize skill.`,
     },
     x402Server
