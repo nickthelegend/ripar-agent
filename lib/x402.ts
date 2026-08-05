@@ -37,64 +37,25 @@ export const USDC_ASSET: Record<Network, number> = {
 };
 
 /**
- * The asset the on-chain registries settle in, where there is one.
- *
- * ReputationRegistry pins its settlement asset at bootstrap and never lets it
- * change — `accept_feedback` asserts `payment.xfer_asset.id == self.usdc_asset`
- * — so a payment in any other asset settles perfectly over HTTP and then cannot
- * credit reputation. The two halves work and do not compose.
- *
- * On TestNet that asset is Ripar Test USDC, because real TestNet USDC is
- * faucet-gated and an agent that cannot obtain it cannot be paid at all. So the
- * endpoint quotes BOTH: real USDC first for anyone who has it, and this second
- * for a caller who wants the payment to reach their score. x402 `accepts` is an
- * array precisely so a resource can offer more than one way to pay.
- *
- * Null on mainnet: nothing is deployed there, and inventing an id would quote a
- * payment nobody can make.
- */
-export const REGISTRY_ASSET: Record<Network, { id: number; decimals: number; symbol: string } | null> = {
-  mainnet: null,
-  testnet: { id: 768_547_363, decimals: 6, symbol: "rUSDC" },
-};
-
-/** One cent, in the base units of a six-decimal asset. */
-const PRICE_MICRO = "10000";
-
-/**
  * Every way this agent will accept a cent, for any gated route.
  *
- * Built here rather than inline per route because there are two routes —
- * /api/summarize and /a2a — selling the same skill, and they drifted the moment
- * one of them learned something the other did not: /a2a kept quoting USDC alone
- * after the REST route started offering both, so a peer that discovered the
- * agent through its card and paid over A2A could never be credited.
+ * One option, and that is the point. The ReputationRegistry pins its settlement
+ * asset at bootstrap and asserts it on every credit — `accept_feedback` checks
+ * `payment.xfer_asset.id == self.usdc_asset` — so a payment in any other asset
+ * settles perfectly over HTTP and can never reach the payee's score.
  *
- * The order matters. USDC is what a stranger has and what the challenge is
- * denominated in, so a client that takes accepts[0] gets the obvious one.
+ * The registries are bootstrapped to USDC_ASSET, so quoting `$0.01` here names
+ * exactly the asset they credit: settling and being credited are the same
+ * event. An earlier deployment pinned them to a token minted for the purpose,
+ * which forced this route to quote two assets so a caller could choose between
+ * being paid-for and being credited. That split is gone.
+ *
+ * Built here rather than inline per route because /api/summarize and /a2a sell
+ * the same skill, and they drifted the moment one learned something the other
+ * did not.
  */
 export function paymentOptions(network: `${string}:${string}`) {
-  const registryAsset = REGISTRY_ASSET[NETWORK];
-  return [
-    { scheme: "exact" as const, network, payTo: PAY_TO, price: "$0.01" },
-    ...(registryAsset
-      ? [
-          {
-            scheme: "exact" as const,
-            network,
-            payTo: PAY_TO,
-            price: {
-              asset: String(registryAsset.id),
-              amount: PRICE_MICRO,
-              // `usd: false` is not decoration. Without it a client converts
-              // these base units as though they were USDC and misreports the
-              // price of any asset whose decimals differ.
-              extra: { decimals: registryAsset.decimals, usd: false, symbol: registryAsset.symbol },
-            },
-          },
-        ]
-      : []),
-  ];
+  return [{ scheme: "exact" as const, network, payTo: PAY_TO, price: "$0.01" }];
 }
 
 type Caip2 = `${string}:${string}`;
