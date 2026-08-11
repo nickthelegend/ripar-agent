@@ -8,12 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
-    "@x402/avm": "^2.20.0",
-    "@x402/core": "^2.20.0",
-    "@x402/next": "^2.20.0",
+    "@x402/avm": "^2.21.0",
+    "@x402/core": "^2.21.0",
+    "@x402/next": "^2.21.0",
     "next": "^16.3.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
