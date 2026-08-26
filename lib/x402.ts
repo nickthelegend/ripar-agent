@@ -18,9 +18,15 @@ export const FACILITATOR_URL =
 export const PAY_TO = process.env.PAY_TO ?? "";
 
 /** Which chain this deployment settles on. TestNet while the endpoint is
- *  being proven; flip the env var to promote it, no code change. */
+ *  being proven; set RIPAR_NETWORK=mainnet to promote it, no code change.
+ *
+ *  The comparison is deliberately `=== "mainnet"` rather than `=== "testnet"`.
+ *  Written the other way the default was MainNet, so losing the env var — a
+ *  preview deploy, a new environment, a project re-link — would silently start
+ *  quoting real USDC (31566704) while REGISTRIES in this same repo still names
+ *  the TestNet app ids. An unset variable should cost nothing, not real money. */
 export type Network = "mainnet" | "testnet";
-export const NETWORK: Network = process.env.RIPAR_NETWORK === "testnet" ? "testnet" : "mainnet";
+export const NETWORK: Network = process.env.RIPAR_NETWORK === "mainnet" ? "mainnet" : "testnet";
 
 // CAIP-2 truncates the genesis hash to 32 characters, so these are prefixes of
 // what a facilitator publishes — matched both ways below.

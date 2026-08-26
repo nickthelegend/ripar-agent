@@ -29,7 +29,18 @@ const RIPAR_EXT = {
 
 /** TestNet ERC-8004-shaped registries. Reputation is v2 — the one that reads
  *  the amount off the settling transfer instead of taking it as an argument. */
-const REGISTRIES = { identityApp: 769444119, reputationApp: 769444120, validationApp: 769444121 };
+// The one thing RIPAR_NETWORK did NOT switch. Flipping the network moved the
+// asset and the CAIP-2 chain id but left these literals, so the published card
+// would have advertised MainNet payment alongside TestNet registry ids.
+const regApp = (v: string | undefined, fallback: number) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+};
+const REGISTRIES = {
+  identityApp: regApp(process.env.RIPAR_IDENTITY_APP, 769444119),
+  reputationApp: regApp(process.env.RIPAR_REPUTATION_APP, 769444120),
+  validationApp: regApp(process.env.RIPAR_VALIDATION_APP, 769444121),
+};
 
 /** This agent's id in the IdentityRegistry above.
  *
