@@ -59,9 +59,15 @@ never takes custody — the caller's wallet pays the agent's address directly, a
 the transaction is the receipt. There is nothing to withdraw and no balance held
 on your behalf.
 
-**This agent has been paid 0 times.** It is a demo. The 402 is real, the price is
-real, and the settlement path is the same one any agent uses — but nobody has
-paid it yet, and it will say so here until someone does.
+**This agent has been paid once.** One real settlement, on TestNet:
+[`Q52SGSFS…`](https://lora.algokit.io/testnet/transaction/Q52SGSFSAVK3BSA6FNOTNPJ6VGZJOXANKNMJZBO2G4ZOWXZGSBUA)
+— 10000 base units of asset 10458941, network fee sponsored by the facilitator,
+note `x402-payment-v2-…`. The dashboard reads it back as "You have earned 0.01
+USDC · 1 paid calls to your address".
+
+One is a small number and it is the true one. It is stated here rather than
+rounded up to "in production" because the whole point of this project is that
+the figure comes off the chain, where anyone can check it.
 
 ## Running your own
 
