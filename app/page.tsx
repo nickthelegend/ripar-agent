@@ -1,5 +1,3 @@
-import { headers } from "next/headers";
-
 export const dynamic = "force-dynamic";
 
 /**
@@ -9,29 +7,12 @@ export const dynamic = "force-dynamic";
  * scraping it for merchant branding got nothing, and the dashboard showed the
  * agent nameless and logo-less no matter how many payments it settled.
  *
- * An API client asking for JSON still gets JSON, so nothing that already works
- * changes. A browser or a crawler gets HTML, and the metadata in layout.tsx
- * rides along in its head. Same URL, two audiences, neither one compromised.
+ * A browser or a crawler gets this HTML, and the metadata in layout.tsx rides
+ * along in its head. An API client asking for JSON is answered by middleware.ts
+ * before this ever renders — a page component cannot return a bare JSON body,
+ * because the layout wraps whatever it returns in <html>.
  */
-export default async function Root() {
-  const accept = (await headers()).get("accept") ?? "";
-
-  // Anything that asked for JSON and did NOT ask for HTML is an API client.
-  if (accept.includes("application/json") && !accept.includes("text/html")) {
-    const body = {
-      name: "Ripar Text Tools",
-      description:
-        "A real, payable x402 endpoint on Algorand. Ask it to summarise text and it answers 402 with a price in USDC.",
-      manifest: "/.well-known/ripar.json",
-      agentCard: "/.well-known/agent.json",
-      health: "/api/health",
-      endpoints: [{ name: "summarize", url: "/api/summarize", price: "$0.01" }],
-    };
-    return (
-      <pre suppressHydrationWarning>{JSON.stringify(body, null, 2)}</pre>
-    );
-  }
-
+export default function Root() {
   return (
     <main
       style={{
