@@ -171,7 +171,7 @@ export async function GET(request: Request) {
           id: "summarize",
           name: "Summarise text",
           description: "Summarise any text payload into whole sentences.",
-          tags: ["text", "summarisation"],
+          tags: ["text", "summarisation", "x402-global-challenge", "hackathon"],
           examples: ["Summarise this article into three sentences."],
           inputModes: ["application/json"],
           outputModes: ["application/json"],

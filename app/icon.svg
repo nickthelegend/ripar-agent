@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><defs>
+<linearGradient id="hi" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd9a3"/><stop offset="1" stop-color="#ff8f42"/></linearGradient>
+<linearGradient id="lt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9d4f"/><stop offset="1" stop-color="#ff6620"/></linearGradient>
+<linearGradient id="md" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4541b"/><stop offset="1" stop-color="#c93400"/></linearGradient>
+<linearGradient id="dk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b62c00"/><stop offset="1" stop-color="#8a2000"/></linearGradient>
+<linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c1c1f"/><stop offset="1" stop-color="#0c0c0e"/></linearGradient>
+</defs><rect width="48" height="48" rx="13" fill="url(#tile)"/><path d="M9.0 40.52 L42.5 35.03 L38.19 23.19 Z" fill="url(#hi)"/><path d="M9.0 40.52 L39.46 20.51 L30.06 10.77 Z" fill="url(#lt)"/><path d="M9.0 40.52 L27.34 11.95 L16.81 7.48 Z" fill="url(#md)"/><path d="M9.0 40.52 L14.56 11.08 L5.5 10.77 Z" fill="url(#dk)"/></svg>

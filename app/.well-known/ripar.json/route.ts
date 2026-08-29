@@ -36,7 +36,7 @@ export async function GET(request: Request) {
           },
           required: ["text"],
         },
-        tags: ["text", "summarisation"],
+        tags: ["text", "summarisation", "x402-global-challenge", "hackathon"],
       },
     ],
     x402: {
