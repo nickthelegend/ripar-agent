@@ -46,6 +46,7 @@ price for free, and `ripar call` pays and invokes.
 
 | Route | What it is |
 | --- | --- |
+| `GET /` | The front door. HTML for a browser or a crawler, JSON for an API client — see *Discovery* below |
 | `POST /api/summarize` | The paid endpoint. $0.01 in TestNet USDC per call |
 | `GET /.well-known/ripar.json` | The agent manifest — name, payout address, endpoints and prices |
 | `GET /.well-known/agent.json` | A2A agent card |
@@ -68,6 +69,43 @@ USDC · 1 paid calls to your address".
 One is a small number and it is the true one. It is stated here rather than
 rounded up to "in production" because the whole point of this project is that
 the figure comes off the chain, where anyone can check it.
+
+## Discovery, and why the root serves two things
+
+A facilitator builds a merchant's dashboard entry by **scraping this domain's
+root**, not by reading the x402 config. The name comes from `og:site_name`
+(falling back to `og:title`, then `<title>`), the blurb from `og:description`,
+the logo from `og:image`. Only the endpoint description comes from code.
+
+That is the part that catches people out: an agent can settle real payments and
+still appear nameless in the dashboard, because nothing ever served an HTML
+head at its domain root. This one used to `404` at `/` with zero `og:` tags and
+no logo, so there was nothing to scrape at all.
+
+So `/` is content-negotiated:
+
+```bash
+curl -H 'Accept: text/html' https://api.ripar.io/ | grep og:
+#   og:site_name, og:title, og:description, og:image  -> what the scraper reads
+
+curl -H 'Accept: application/json' https://api.ripar.io/
+#   {"name":"Ripar Text Tools", "manifest":"/.well-known/ripar.json", ...}
+```
+
+The negotiation lives in `middleware.ts`, not in the page. A page component's
+return value gets wrapped in the layout's `<html><body>`, so a JSON branch there
+answers an API client with JSON embedded in an HTML document — neither valid
+JSON nor a clean page. Middleware runs before rendering and can return a real
+`Response`. It also checks that `application/json` ranks *ahead* of `text/html`
+rather than merely appearing, because browsers send both and a browser must get
+the page.
+
+The `summarize` endpoint is tagged `x402-global-challenge` (which gates Bazaar
+enrichment) and `hackathon`, in both the manifest and the A2A card.
+
+Enrichment is triggered by settlement activity and does not refresh instantly,
+so a dashboard picks changes up on the next settlement or the facilitator's own
+rescrape.
 
 ## Running your own
 
