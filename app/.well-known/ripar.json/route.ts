@@ -38,6 +38,23 @@ export async function GET(request: Request) {
         },
         tags: ["text", "summarisation", "x402-global-challenge", "hackathon"],
       },
+      {
+        name: "verify-settlement",
+        description:
+          "Verify an Algorand transaction is a real x402 settlement and decode what it moved.",
+        url: `${origin}/api/verify-settlement`,
+        method: "POST",
+        price: "$0.02",
+        input: {
+          type: "object",
+          properties: {
+            txid: { type: "string", minLength: 52, maxLength: 52 },
+            network: { type: "string", enum: ["testnet", "mainnet"] },
+          },
+          required: ["txid"],
+        },
+        tags: ["algorand", "x402", "verification", "x402-global-challenge", "hackathon"],
+      },
     ],
     x402: {
       facilitator: FACILITATOR_URL,

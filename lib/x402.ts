@@ -60,8 +60,8 @@ export const USDC_ASSET: Record<Network, number> = {
  * the same skill, and they drifted the moment one learned something the other
  * did not.
  */
-export function paymentOptions(network: `${string}:${string}`) {
-  return [{ scheme: "exact" as const, network, payTo: PAY_TO, price: "$0.01" }];
+export function paymentOptions(network: `${string}:${string}`, price = "$0.01") {
+  return [{ scheme: "exact" as const, network, payTo: PAY_TO, price }];
 }
 
 type Caip2 = `${string}:${string}`;
