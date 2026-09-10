@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
 import { paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, summarize } from "@/lib/skills";
+import { readKey, recall, remember } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,18 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
 /** Resolve the network once per cold start, then wrap. */
 const wrapped = (async (request: NextRequest) => {
+  // BEFORE the payment gate, deliberately. The SDK sends Idempotency-Key on
+  // every paid call so a retry after a dropped connection replays the answer
+  // instead of paying again — and this agent used to ignore it, so the same
+  // key charged twice. Once withX402 settles a transfer the money has moved;
+  // the only place this check helps is in front of it.
+  const key = readKey(request);
+  const raw = key ? await request.clone().text() : "";
+  if (key) {
+    const replay = recall(key, raw);
+    if (replay) return replay;
+  }
+
   const network = await resolveNetwork();
 
   const accepts = paymentOptions(network);
@@ -45,7 +58,14 @@ const wrapped = (async (request: NextRequest) => {
     },
     x402Server
   );
-  return gated(request);
+  const res = await gated(request);
+
+  if (key) {
+    // Read through a clone: the caller still needs the original body.
+    const copy = res.clone();
+    remember(key, raw, copy.status, await copy.text(), copy.headers.get("content-type") ?? "application/json");
+  }
+  return res;
 }) satisfies (r: NextRequest) => Promise<Response>;
 
 export const POST = wrapped;
