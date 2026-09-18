@@ -231,7 +231,8 @@ export function summarize(scan: Scan, network: Network | "all") {
   const hosts = new Map<string, ListingHealth[]>();
   for (const l of L) {
     totals[l.status]++;
-    if (l.status !== "ok" && l.failing[0]) issues[l.failing[0]] = (issues[l.failing[0]] ?? 0) + 1;
+    // "Not judged" is not a problem with the listing, so it is not counted as one.
+    if ((l.status === "broken" || l.status === "not_challenge_ready") && l.failing[0]) issues[l.failing[0]] = (issues[l.failing[0]] ?? 0) + 1;
     hosts.set(l.host, [...(hosts.get(l.host) ?? []), l]);
   }
 
