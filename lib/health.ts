@@ -51,31 +51,36 @@ const PER_HOST = 2;
 export const NOT_JUDGED = new Set(["rate_limited", "rejected_sample", "private_host"]);
 const HOSTS_AT_ONCE = 24;
 
-let current: Scan | null = null;
-let last: Scan | null = null;
-let running: Promise<void> | null = null;
+/**
+ * On globalThis, not in module variables. Next bundles instrumentation, each
+ * page and each route handler separately, so a module-level `let` exists once
+ * per bundle: the page, the JSON route and the boot hook each saw no scan and
+ * each started their own — three sets of probes against every merchant.
+ */
+type State = { current: Scan | null; last: Scan | null; running: Promise<void> | null; scheduled: boolean };
+const g = globalThis as typeof globalThis & { __riparHealth?: State };
+const state: State = (g.__riparHealth ??= { current: null, last: null, running: null, scheduled: false });
 
 /** The newest complete scan, or the one in progress if none has finished. */
 export function board(): { scan: Scan | null; running: Scan | null } {
-  return { scan: last ?? current, running: running ? current : null };
+  return { scan: state.last ?? state.current, running: state.running ? state.current : null };
 }
 
 export function startScan(): Promise<void> {
-  if (!running) {
-    running = scan()
+  if (!state.running) {
+    state.running = scan()
       .catch((e) => console.error("[health] scan failed:", (e as Error).message))
       .finally(() => {
-        running = null;
+        state.running = null;
       });
   }
-  return running;
+  return state.running;
 }
 
-let scheduled = false;
 /** Called once at boot from instrumentation.ts. */
 export function scheduleScans(): void {
-  if (scheduled) return;
-  scheduled = true;
+  if (state.scheduled) return;
+  state.scheduled = true;
   setTimeout(() => void startScan(), 15_000);
   setInterval(() => void startScan(), SCAN_EVERY_MS).unref?.();
 }
@@ -87,7 +92,7 @@ async function scan(): Promise<void> {
   const items = all.filter((it) => Array.isArray(it.accepts) && it.accepts.some((a: any) => typeof a?.network === "string" && networkOf(a.network)));
 
   const next: Scan = { startedAt: new Date().toISOString(), finishedAt: null, total: items.length, done: 0, listings: [] };
-  current = next;
+  state.current = next;
 
   const byHost = new Map<string, Record<string, any>[]>();
   for (const it of items) {
@@ -104,7 +109,7 @@ async function scan(): Promise<void> {
   );
 
   next.finishedAt = new Date().toISOString();
-  last = next;
+  state.last = next;
   console.log(`[health] scanned ${next.total} listings in ${Math.round((Date.parse(next.finishedAt) - Date.parse(next.startedAt)) / 1000)}s`);
 }
 
