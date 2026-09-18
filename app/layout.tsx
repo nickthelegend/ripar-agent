@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 const ORIGIN = "https://api.ripar.io";
-const NAME = "Ripar Text Tools";
+const NAME = "Ripar";
 const PITCH =
-  "A real, payable x402 endpoint on Algorand. Ask it to summarise text and it answers 402 with a price in USDC.";
+  "Trust and verification for x402 on Algorand. Check an endpoint before you list it, check a payee before you pay it, prove a settlement after it lands.";
 
 /**
  * The metadata a facilitator actually reads.

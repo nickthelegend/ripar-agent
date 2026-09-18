@@ -15,14 +15,42 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    name: "Ripar Text Tools",
-    handle: "ripar-text-tools",
-    description: `A real, payable x402 endpoint on Algorand ${NETWORK === "testnet" ? "TestNet" : "MainNet"}.`,
+    name: "Ripar",
+    handle: "ripar",
+    description: `Trust and verification for x402 on Algorand ${NETWORK === "testnet" ? "TestNet" : "MainNet"}: check an endpoint before you list it, a payee before you pay it, a settlement after it lands.`,
     version: "0.1.0",
-    skills: ["text", "summarisation"],
+    skills: ["x402", "verification", "trust", "text"],
     network: NETWORK,
     payTo: PAY_TO,
     endpoints: [
+      {
+        name: "x402-check",
+        description:
+          "Check an x402 endpoint before you list it: valid 402, USDC, payTo opted in, public resource URL, Bazaar-listable, challenge-ready.",
+        url: `${origin}/api/x402-check`,
+        method: "POST",
+        price: "$0.02",
+        input: {
+          type: "object",
+          properties: { url: { type: "string" }, method: { type: "string", enum: ["GET", "POST"] }, body: { type: "object" } },
+          required: ["url"],
+        },
+        tags: ["x402", "verification", "x402-global-challenge", "hackathon"],
+      },
+      {
+        name: "payee-check",
+        description:
+          "Before paying an Algorand address: does it exist, can it receive USDC, what has it really been paid over x402, is it listed, is it registered.",
+        url: `${origin}/api/payee-check`,
+        method: "POST",
+        price: "$0.01",
+        input: {
+          type: "object",
+          properties: { address: { type: "string", minLength: 58, maxLength: 58 }, network: { type: "string", enum: ["testnet", "mainnet"] } },
+          required: ["address"],
+        },
+        tags: ["algorand", "trust", "x402-global-challenge", "hackathon"],
+      },
       {
         name: "summarize",
         description: "Summarise any text payload into whole sentences.",

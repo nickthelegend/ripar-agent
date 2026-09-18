@@ -1,3 +1,4 @@
+import { NETWORK } from "./x402";
 /**
  * The work itself, with no transport around it.
  *
@@ -111,7 +112,10 @@ export async function verifySettlement(body: VerifyInput): Promise<VerifyResult>
       "malformed_txid"
     );
   }
-  const net = body.network === "mainnet" ? "mainnet" : "testnet";
+  // Default to the chain this deployment settles on. It used to default to
+  // testnet, so on the MainNet agent a caller verifying a MainNet payment
+  // without naming the network was told the transaction did not exist.
+  const net = body.network === "mainnet" || body.network === "testnet" ? body.network : NETWORK;
 
   const res = await fetch(`${INDEXER[net]}/v2/transactions/${txid}`, { cache: "no-store" });
   if (res.status === 404) {

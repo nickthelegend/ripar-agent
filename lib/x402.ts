@@ -93,8 +93,8 @@ export function listing(opts: {
   output: unknown;
 }) {
   return {
-    serviceName: "Ripar Text Tools",
-    tags: [CHALLENGE_TAG, "algorand", "x402", "ripar"],
+    serviceName: "Ripar",
+    tags: [CHALLENGE_TAG, "algorand", "x402", "trust", "verification", "ripar"],
     iconUrl: ICON,
     extensions: {
       ...declareDiscoveryExtension({

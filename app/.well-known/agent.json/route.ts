@@ -1,3 +1,4 @@
+import { REGISTRIES } from "@/lib/chain";
 import { publicOrigin } from "@/lib/origin";
 import { NextResponse } from "next/server";
 import { FACILITATOR_URL, PAY_TO, resolveNetwork, NETWORK, USDC_ASSET } from "@/lib/x402";
@@ -33,15 +34,8 @@ const RIPAR_EXT = {
 // The one thing RIPAR_NETWORK did NOT switch. Flipping the network moved the
 // asset and the CAIP-2 chain id but left these literals, so the published card
 // would have advertised MainNet payment alongside TestNet registry ids.
-const regApp = (v: string | undefined, fallback: number) => {
-  const n = Number(v);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
-};
-const REGISTRIES = {
-  identityApp: regApp(process.env.RIPAR_IDENTITY_APP, 769444119),
-  reputationApp: regApp(process.env.RIPAR_REPUTATION_APP, 769444120),
-  validationApp: regApp(process.env.RIPAR_VALIDATION_APP, 769444121),
-};
+// Network-keyed now; see lib/chain.ts for why the literals were removed.
+
 
 /** This agent's id in the IdentityRegistry above.
  *
@@ -69,7 +63,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     {
-      name: "Ripar Text Tools",
+      name: "Ripar",
       description: `Text utilities, payable per call over x402 on Algorand ${
         NETWORK === "testnet" ? "TestNet" : "MainNet"
       }.`,
