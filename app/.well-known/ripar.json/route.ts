@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/origin";
 import { NextResponse } from "next/server";
 import { FACILITATOR_URL, PAY_TO, resolveNetwork, NETWORK, USDC_ASSET } from "@/lib/x402";
 
@@ -5,7 +6,7 @@ import { FACILITATOR_URL, PAY_TO, resolveNetwork, NETWORK, USDC_ASSET } from "@/
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+  const origin = publicOrigin(request);
   let network: string | null = null;
   try {
     network = await resolveNetwork();

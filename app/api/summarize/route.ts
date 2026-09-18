@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
+import { publicOrigin } from "@/lib/origin";
 import { listing, paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, summarize } from "@/lib/skills";
 import { readKey, recall, remember } from "@/lib/idempotency";
@@ -54,6 +55,8 @@ const wrapped = (async (request: NextRequest) => {
     handler,
     {
       accepts,
+      // Named, not inferred: behind a proxy the inferred one is localhost.
+      resource: `${publicOrigin(request)}/api/summarize`,
       description: "Summarise any text payload into whole sentences.",
       mimeType: "application/json",
       ...listing({

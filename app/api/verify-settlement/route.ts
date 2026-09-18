@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
+import { publicOrigin } from "@/lib/origin";
 import { listing, paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, verifySettlement } from "@/lib/skills";
 
@@ -45,6 +46,7 @@ const wrapped = (async (request: NextRequest) => {
     handler,
     {
       accepts,
+      resource: `${publicOrigin(request)}/api/verify-settlement`,
       description:
         "Verify an Algorand transaction is a real x402 settlement and decode what it moved.",
       mimeType: "application/json",

@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/origin";
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
 import { paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
@@ -193,6 +194,7 @@ async function gated(request: NextRequest, handler: (r: NextRequest) => Promise<
     handler,
     {
       accepts: paymentOptions(network),
+      resource: `${publicOrigin(request)}/a2a`,
       description: `A2A ${what} against the summarize skill.`,
     },
     x402Server
@@ -319,7 +321,7 @@ export async function POST(request: NextRequest) {
 
     case "agent/getAuthenticatedExtendedCard":
       // No authenticated view exists, so the public card IS the whole card.
-      return NextResponse.redirect(new URL("/.well-known/agent.json", request.url), 307);
+      return NextResponse.redirect(`${publicOrigin(request)}/.well-known/agent.json`, 307);
 
     default:
       return rpcError(
@@ -338,7 +340,7 @@ export function GET(request: NextRequest) {
     protocolVersion: PROTOCOL_VERSION,
     transport: "JSONRPC",
     methods: ["message/send", "message/stream", "tasks/get", "tasks/cancel"],
-    card: new URL("/.well-known/agent.json", request.url).toString(),
+    card: `${publicOrigin(request)}/.well-known/agent.json`,
     note:
       `POST JSON-RPC 2.0 here. message/send and message/stream are paid over x402; an unpaid call ` +
       `returns error ${ERR.paymentRequired} carrying the challenge. message/stream answers with ` +
