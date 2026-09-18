@@ -52,7 +52,8 @@ async function assertPublicHost(host: string): Promise<void> {
   }
 }
 
-const networkOf = (caip2: string): Network | null =>
+export const networkOf = (caip2: string): Network | null =>
+  caip2 === "algorand-mainnet" || caip2 === "algorand" ? "mainnet" : caip2 === "algorand-testnet" ? "testnet" :
   caip2.startsWith(MAINNET_PREFIX) || MAINNET_PREFIX.startsWith(caip2) ? "mainnet"
   : caip2.startsWith(TESTNET_PREFIX) || TESTNET_PREFIX.startsWith(caip2) ? "testnet"
   : null;
@@ -68,7 +69,16 @@ async function optedIn(net: Network, address: string, asset: number): Promise<bo
 
 type Check = { id: string; ok: boolean | null; detail: string; blocks: "listing" | "challenge" | "nothing" };
 
-export async function x402Check(body: { url?: unknown; method?: unknown; body?: unknown }) {
+/**
+ * `optIn` lets a caller checking many endpoints share opt-in lookups: the
+ * health board probes ~2,000 listings paid to ~100 addresses. A single paid
+ * check never passes it, so a merchant re-checking right after opting in is
+ * never answered from a stale cache.
+ */
+export async function x402Check(
+  body: { url?: unknown; method?: unknown; body?: unknown },
+  opts: { optIn?: Map<string, Promise<boolean | null>>; timeoutMs?: number } = {}
+) {
   if (typeof body.url !== "string" || !body.url.trim()) {
     throw new SkillInputError("`url` is required: the x402 endpoint to check.", "missing_url");
   }
@@ -95,7 +105,7 @@ export async function x402Check(body: { url?: unknown; method?: unknown; body?: 
       redirect: "manual", // a redirect could point anywhere, including inside
       headers: { accept: "application/json", "content-type": "application/json", "user-agent": UA },
       body: method === "POST" ? JSON.stringify(body.body ?? {}) : undefined,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
       cache: "no-store",
     });
   } catch (e) {
@@ -114,7 +124,28 @@ export async function x402Check(body: { url?: unknown; method?: unknown; body?: 
       pr = null;
     }
   }
-  add("payment_required_header", pr != null, pr ? `PAYMENT-REQUIRED decodes, x402Version ${pr.x402Version}.` : "No decodable PAYMENT-REQUIRED header.", "listing");
+  if (pr) {
+    add("payment_required_header", true, `PAYMENT-REQUIRED decodes, x402Version ${pr.x402Version}.`, "listing");
+  } else {
+    // No header. x402 v1 put the quote in the body, and clients still accept
+    // that. A v2 quote in the body alone is what @x402's client rejects — it
+    // reads v2 from the header only — so say precisely that, and keep going on
+    // the body so the rest of the diagnosis is still useful.
+    const body = res.status === 402 ? ((await res.json().catch(() => null)) as Record<string, any> | null) : null;
+    if (body && Array.isArray(body.accepts)) {
+      pr = body;
+      const v1 = body.x402Version === 1;
+      add(
+        "payment_required_header",
+        v1,
+        v1 ? "x402 v1: the quote is in the body, which clients accept."
+          : `x402Version ${body.x402Version} quote is only in the body. The standard @x402 client reads v2 quotes from the PAYMENT-REQUIRED header only, so it cannot pay this; only a custom client can. Send the same object base64-encoded in that header too.`,
+        "listing"
+      );
+    } else {
+      add("payment_required_header", false, "No decodable PAYMENT-REQUIRED header, and no quote in the body.", "listing");
+    }
+  }
   if (!pr) return verdict(target.href, checks);
 
   const accepts: Record<string, any>[] = Array.isArray(pr.accepts) ? pr.accepts : [];
@@ -131,7 +162,13 @@ export async function x402Check(body: { url?: unknown; method?: unknown; body?: 
     if (!addressToPublicKey(payTo)) {
       add("payto_valid", false, `payTo ${payTo || "(empty)"} is not a valid Algorand address.`, "listing");
     } else {
-      const inn = await optedIn(net, payTo, asset);
+      const key = `${net}:${payTo}:${asset}`;
+      let lookup = opts.optIn?.get(key);
+      if (!lookup) {
+        lookup = optedIn(net, payTo, asset);
+        opts.optIn?.set(key, lookup);
+      }
+      const inn = await lookup;
       add("payto_opted_in", inn, inn === null ? "Could not read payTo from the chain." : inn ? `payTo is opted into asset ${asset}.` : `payTo is NOT opted into asset ${asset}: every payment to it fails.`, "listing");
     }
     const feePayer = algo.extra?.feePayer;
@@ -194,7 +231,7 @@ function verdict(url: string, checks: Check[]) {
 // ── payee-check ──────────────────────────────────────────────────────────────
 
 let catalog: { at: number; items: Record<string, any>[] } | null = null;
-async function bazaarCatalog(): Promise<Record<string, any>[] | null> {
+export async function bazaarCatalog(): Promise<Record<string, any>[] | null> {
   if (catalog && Date.now() - catalog.at < 10 * 60_000) return catalog.items;
   const items: Record<string, any>[] = [];
   for (let offset = 0; offset < 20_000; offset += 1000) {

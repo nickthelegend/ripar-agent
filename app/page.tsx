@@ -24,11 +24,19 @@ export default function Root() {
         color: "#1c1917",
       }}
     >
-      <h1 style={{ fontSize: 28, margin: 0 }}>Ripar Text Tools</h1>
+      <h1 style={{ fontSize: 28, margin: 0 }}>Ripar</h1>
       <p style={{ color: "#57534e" }}>
-        A real, payable x402 endpoint on Algorand. Ask it to summarise text and
-        it answers <strong>402</strong> with a price in USDC — no account, no
-        card, no invoice.
+        Trust and verification for x402 on Algorand. Check an endpoint before you
+        list it, check a payee before you pay it, prove a settlement after it
+        lands. Every call is paid per request in USDC — no account, no card.
+      </p>
+      <p style={{ fontSize: 15 }}>
+        <a href="/health" style={{ fontWeight: 600 }}>
+          Bazaar health →
+        </a>{" "}
+        <span style={{ color: "#57534e" }}>
+          every Algorand x402 listing, probed every six hours. Free.
+        </span>
       </p>
       <pre
         style={{
@@ -39,13 +47,13 @@ export default function Root() {
           overflowX: "auto",
           fontSize: 13,
         }}
-      >{`curl -i -X POST https://api.ripar.io/api/summarize \\
-  -H 'content-type: application/json' \\
-  -d '{"text":"a long piece of text you want shortened"}'`}</pre>
+      >{`POST /api/x402-check        $0.02  {"url": "https://your.api/endpoint"}
+POST /api/payee-check       $0.01  {"address": "<algorand address>"}
+POST /api/verify-settlement $0.02  {"txid": "<52-char txid>"}`}</pre>
       <p style={{ color: "#57534e", fontSize: 14 }}>
-        That returns a real 402 carrying a machine-readable price. Attach{" "}
-        <code>X-PAYMENT</code> with a signed USDC transfer and the same request
-        returns the summary.
+        An unpaid call answers <strong>402</strong> with a machine-readable
+        price. Pay it with any x402 client, e.g.{" "}
+        <code>npx -p @ripar/sdk ripar call &lt;url&gt; --body &apos;…&apos;</code>
       </p>
       <ul style={{ color: "#57534e", fontSize: 14, paddingLeft: 18 }}>
         <li>

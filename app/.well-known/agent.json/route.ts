@@ -131,7 +131,7 @@ export async function GET(request: Request) {
               command: "npx",
               args: ["-y", "github:nickthelegend/ripar-skills"],
               source: "https://github.com/nickthelegend/ripar-skills",
-              // The fifteen tools the server actually registers, read back off
+              // The sixteen tools the server actually registers, read back off
               // a real stdio session with `tools/list` rather than copied from
               // a design note. It listed ten until 2026-08-05: bidding, health
               // and key rotation had shipped and the card never said so, and a
@@ -152,6 +152,7 @@ export async function GET(request: Request) {
                 "ripar_place_bid",
                 "ripar_accept_bid",
                 "ripar_rotate_address",
+                "ripar_payee_check",
               ],
             },
           },

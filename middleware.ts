@@ -17,13 +17,19 @@ import { NextResponse, type NextRequest } from "next/server";
  * the page.
  */
 const BODY = {
-  name: "Ripar Text Tools",
+  name: "Ripar",
   description:
-    "A real, payable x402 endpoint on Algorand. Ask it to summarise text and it answers 402 with a price in USDC.",
+    "Trust and verification for x402 on Algorand: check an endpoint before you list it, a payee before you pay it, a settlement after it lands.",
   manifest: "/.well-known/ripar.json",
   agentCard: "/.well-known/agent.json",
   health: "/api/health",
-  endpoints: [{ name: "summarize", url: "/api/summarize", price: "$0.01" }],
+  bazaarHealth: { page: "/health", data: "/api/bazaar-health" },
+  endpoints: [
+    { name: "x402-check", url: "/api/x402-check", price: "$0.02" },
+    { name: "payee-check", url: "/api/payee-check", price: "$0.01" },
+    { name: "verify-settlement", url: "/api/verify-settlement", price: "$0.02" },
+    { name: "summarize", url: "/api/summarize", price: "$0.01" },
+  ],
 };
 
 export function middleware(req: NextRequest) {

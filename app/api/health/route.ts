@@ -16,7 +16,7 @@ export async function GET() {
   }
   return NextResponse.json({
     ok: Boolean(PAY_TO) && facilitatorOk,
-    agent: "ripar-text-tools",
+    agent: "ripar",
     payTo: PAY_TO || null,
     facilitator: FACILITATOR_URL,
     network,
