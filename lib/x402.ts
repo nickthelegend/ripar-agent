@@ -1,5 +1,6 @@
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactAvmScheme } from "@x402/avm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 /**
  * The payment side of this agent, in one place.
@@ -61,7 +62,49 @@ export const USDC_ASSET: Record<Network, number> = {
  * did not.
  */
 export function paymentOptions(network: `${string}:${string}`, price = "$0.01") {
-  return [{ scheme: "exact" as const, network, payTo: PAY_TO, price }];
+  return [{ scheme: "exact" as const, network, payTo: PAY_TO, price, extra: { tag: CHALLENGE_TAG } }];
+}
+
+/**
+ * The tag the Global x402 Challenge catalogues entries under.
+ *
+ * It already appeared in /.well-known/ripar.json and agent.json — and that was
+ * the trap. Those are Ripar's own manifests; the GoPlausible facilitator never
+ * reads them. It catalogues from the PaymentRequired it settles against, so a
+ * tag that lives only in our files is a tag the competition cannot see. The
+ * endpoint would have been paid and stayed unlisted.
+ */
+export const CHALLENGE_TAG = "x402-global-challenge";
+
+const ICON = "https://api.ripar.io/opengraph-image.png";
+
+/**
+ * Everything the Bazaar needs to list a route, attached to the route config the
+ * facilitator actually reads.
+ *
+ * `extensions.bazaar` is the one that matters: GoPlausible lists an endpoint on
+ * its first settlement only if the route declares it, and says plainly that
+ * without it "you still get paid but stay unlisted". The input schema and output
+ * example are what a buyer's agent reads to call the route without a human.
+ */
+export function listing(opts: {
+  input: Record<string, unknown>;
+  inputSchema: Record<string, unknown>;
+  output: unknown;
+}) {
+  return {
+    serviceName: "Ripar Text Tools",
+    tags: [CHALLENGE_TAG, "algorand", "x402", "ripar"],
+    iconUrl: ICON,
+    extensions: {
+      ...declareDiscoveryExtension({
+        bodyType: "json",
+        input: opts.input,
+        inputSchema: opts.inputSchema,
+        output: { example: opts.output },
+      }),
+    },
+  };
 }
 
 type Caip2 = `${string}:${string}`;
@@ -88,4 +131,9 @@ export async function resolveNetwork(): Promise<Caip2> {
 
 export const x402Server = new x402ResourceServer(
   new HTTPFacilitatorClient({ url: FACILITATOR_URL })
-).register("algorand:*", new ExactAvmScheme());
+)
+  .register("algorand:*", new ExactAvmScheme())
+  // Enriches each declared bazaar extension with the route's method and
+  // template before it goes out in the 402. Declaring the extension without
+  // registering this sends an incomplete one.
+  .registerExtension(bazaarResourceServerExtension);

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
-import { paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
+import { listing, paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, summarize } from "@/lib/skills";
 import { readKey, recall, remember } from "@/lib/idempotency";
 
@@ -55,6 +55,19 @@ const wrapped = (async (request: NextRequest) => {
     {
       accepts,
       description: "Summarise any text payload into whole sentences.",
+      mimeType: "application/json",
+      ...listing({
+        input: { text: "Algorand finalises blocks in under three seconds. It has no forks. Fees are a fraction of a cent." },
+        inputSchema: {
+          type: "object",
+          properties: {
+            text: { type: "string", description: "The text to summarise." },
+            max: { type: "integer", description: "Maximum sentences to keep." },
+          },
+          required: ["text"],
+        },
+        output: { summary: "Algorand finalises blocks in under three seconds.", chars: 94, summaryChars: 49, sentences: 3, compression: 0.52 },
+      }),
     },
     x402Server
   );

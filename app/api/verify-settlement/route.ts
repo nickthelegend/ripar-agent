@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withX402 } from "@x402/next";
-import { paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
+import { listing, paymentOptions, resolveNetwork, x402Server } from "@/lib/x402";
 import { SkillInputError, verifySettlement } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +47,16 @@ const wrapped = (async (request: NextRequest) => {
       accepts,
       description:
         "Verify an Algorand transaction is a real x402 settlement and decode what it moved.",
+      mimeType: "application/json",
+      ...listing({
+        input: { txid: "YSA2EI7DEYRHVCBQC4SXWCGPCR2FX7OZK7FL6C3LF3CCGSI2RQ2A" },
+        inputSchema: {
+          type: "object",
+          properties: { txid: { type: "string", description: "Algorand transaction id to verify." } },
+          required: ["txid"],
+        },
+        output: { txid: "YSA2EI7DEYRHVCBQC4SXWCGPCR2FX7OZK7FL6C3LF3CCGSI2RQ2A", settled: true },
+      }),
     },
     x402Server
   );
